@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Listening room · Phrase Studio</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#182424;color:#fffaf0;font:1.1rem Inter,system-ui,sans-serif}
+main{max-width:64rem;margin:auto;padding:3rem clamp(1rem,5vw,4rem)}a{color:#a8ddca}
+h1{font:clamp(3rem,7vw,5.4rem) Georgia,serif;margin:.6em 0 .2em}h2{margin:.2em 0 .8em}
+.clips{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,17rem),1fr));gap:1rem;margin:2rem 0 1rem}
+article{border:1px solid #68817b;padding:1.4rem;border-radius:.8rem;background:#203332}
+audio{width:100%}button{font:inherit;font-weight:600;padding:.7rem 1rem;border:0;border-radius:.4rem;cursor:pointer}
+button:disabled{opacity:.5;cursor:default}#actions{display:flex;flex-wrap:wrap;gap:.6em}#next{background:#ade6cc}
+.roll{height:5rem;display:flex;position:relative;align-items:flex-end;gap:2px;margin:1rem 0;background:repeating-linear-gradient(to top,transparent 0 19%,#37504a 20%)}
+.roll i{position:relative;flex:1;height:.35rem;background:#ffd79a}.detail{color:#d2eade}
+</style>
+<main><a href="/">← Phrase Studio</a><h1>Listening room</h1>
+<p id="settings"></p><p>Play both clips. Which melody sounds more connected to you?</p>
+<div class="clips" id="clips"></div><div id="actions"></div>
+<p id="result" role="status"></p><button id="next" hidden>Try another pair →</button></main>
+<script>
+const round = ROUND_DATA;
+const labels = ["A","B"];
+const heard = new Set();
+const choices = [];
+let voted = false;
+document.querySelector("#settings").textContent = round.style + " · Seed " + round.seed + " · 4 seconds each";
+for (const [i,clip] of round.clips.entries()) {
+  const card = document.createElement("article");
+  card.innerHTML = '<h2>Clip '+labels[i]+'</h2><audio controls></audio><div class="detail" hidden></div>';
+  const player = card.querySelector("audio");
+  player.setAttribute("aria-label","Play clip "+labels[i]);
+  player.src = "data:audio/wav;base64,"+clip.wav;
+  player.onplay = () => document.querySelectorAll("audio").forEach(other => {if(other!==player) other.pause()});
+  player.onended = () => {
+    heard.add(i);
+    if(heard.size===2 && !voted) choices.forEach(button => button.disabled=false);
+  };
+  document.querySelector("#clips").append(card);
+}
+for (const [i,label] of ["Prefer A","Prefer B","Tie"].entries()) {
+  const button = document.createElement("button");
+  button.textContent = label;
+  button.disabled = true;
+  choices.push(button);
+  button.onclick = () => {
+    voted = true;
+    choices.forEach(b => b.disabled=true);
+    document.querySelectorAll(".detail").forEach((detail,j) => {
+      const clip = round.clips[j];
+      detail.hidden=false;
+      const model = clip.model==="learned" ? "Markov model" : "Random baseline";
+      detail.innerHTML='<h3>'+model+'</h3><div class="roll" aria-hidden="true"></div>';
+      for (const pitch of clip.notes) {
+        const mark=document.createElement("i");
+        mark.style.bottom=(5+(pitch-60)*6)+"%";
+        detail.querySelector(".roll").append(mark);
+      }
+      detail.append(clip.matches+" of 15 adjacent note pairs occurred in the teaching phrases.");
+    });
+    document.querySelector("#result").textContent = i===2 ? "You rated the clips equally." : "You preferred clip "+labels[i]+".";
+    document.querySelector("#next").hidden=false;
+  };
+  document.querySelector("#actions").append(button);
+}
+document.querySelector("#next").onclick=() => location.assign("/challenge?style="+round.style+"&seed="+((round.seed+1)%100000));
+</script></html>

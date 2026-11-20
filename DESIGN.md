@@ -16,9 +16,15 @@
      B --> S
      S --> W[PCM synthesizer]
      W --> A[Browser audio player]
+     S --> E[Count adjacent pairs seen in the style corpus]
+     A --> VOTE[Blind A/B preference or tie]
+     E --> R[Reveal models and pitch contours]
+     VOTE --> R
    ```
 
    Validation bounds inputs. The two statistical paths support a controlled comparison. The seeded sampler supports replay and the synthesizer makes results audible offline.
+
+   The challenge route renders both modes with the same style, seed and synthesizer, then independently shuffles presentation order. The browser enables voting after both clips end. The reveal explains the count of familiar adjacent pairs for each clip. Preferences last for the current page only. This provides classroom blinding; anyone inspecting the page source can see model labels.
 6. **Failures.** A tiny corpus can repeat phrases. First-order context can produce aimless endings. Fixed duration bounds output but cannot guarantee quality. A pitch with no observed successor falls back to the style pool. Visible pitches also support discussion on a muted machine.
 7. **Evaluation.** Cross both styles and modes with 20 seeds. Check lengths, determinism, WAV duration and observed-transition fractions. Gate the demo on passing assertions and a higher pooled transition fraction for learned generation. Target subsecond synthesis. Before presenting, ask three listeners to compare five randomized pairs each with mode hidden. Target at least 10 of 15 preferences for learned output. Record ties separately. Listening results are pending.
 8. **Open questions.** Do listeners identify the intended mood? Ask them to label clips blind. Does the model replay long training fragments? Compare longest shared subsequences before enlarging the corpus. The instructor’s exact five lecture criteria were unavailable, so confirm the criteria in section 2 against class notes.
