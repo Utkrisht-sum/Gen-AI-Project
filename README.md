@@ -22,6 +22,8 @@ The [official syllabus](https://github.com/Utkrisht-sum/generative_ai_shared/blo
 
 ## Deliverables
 
+- [Download the PowerPoint with presenter notes](Phrase-Studio.pptx) · [Learn the project in ten minutes](WALKTHROUGH.md)
+
 - [Use case, scope, technical design, architecture diagram and evaluation](DESIGN.md)
 - [Presentation slides](slides.html) and [15-minute speaker guide with Q&A](PRESENT.md)
 - `studio.py` serves the workbench, sketches and listening rounds. `arranger.py` fits the sequence model and synthesizes layered audio. The browser interface uses HTML, CSS and plain JavaScript. Run with Python 3.9+ using its standard library. The project needs no database, API key, network service or framework installation.
