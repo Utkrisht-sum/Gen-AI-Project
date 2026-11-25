@@ -26,7 +26,7 @@ Two styles, one to four natural-note motif pitches from C4 to C5, four bars in 4
 |---|---|
 | Creative control | Preserve every input pitch in order. Replaying identical controls produces identical notes. Each tested slice yields at least two variants over ten seeds. |
 | Rendering and export | Score covers 32 eighth-note ticks. Mono 16 kHz PCM contains the expected number of frames for 16 beats at the selected tempo. |
-| Explanation | Every sampled note exposes its context order and normalized post-weighting candidates. Motif notes are identified separately. |
+| Explanation | Every sampled note exposes attention weights or baseline context order and normalized post-weighting candidates. Motif notes are identified separately. |
 | Audience comparison | Hide generator labels until both clips end and a listener votes. Include a tie option. |
 | Latency and cost | Target under 1 second to generate and render a typical local arrangement. Zero per-request provider fees. |
 | Privacy, freshness, rights | Bind to loopback. Data stays on the machine; HTTP logs contain request parameters. Corpus is versioned with the code and updated at release time. Use project-authored exercises and synthesized audio. |
@@ -39,6 +39,8 @@ flowchart LR
   V --> G[Seeded continuation sampler]
   P[Authored style phrases] --> T[Count zero-, one- and two-note contexts]
   T --> G
+  P --> N[Train causal self-attention on next-note targets]
+  N --> G
   H[Chord and rhythm templates] --> G
   G --> E[Timed events and probability trace]
   E --> S[Score and note inspector]
@@ -49,17 +51,19 @@ flowchart LR
   L --> B[Two shuffled audio clips and vote reveal]
 ```
 
-The model fits nine eight-note phrases per style without crossing phrase boundaries. At each new onset it tries the last two pitches, then the last pitch, then the style-wide counts. On integer beats it doubles the count of candidates in the bar's chord and normalizes before sampling. The seed controls rhythm template selection and pitch sampling. Each bar consumes eight ticks. The mixer places each voice on the same sample clock. No external inference or database is required. The blind lab uses only the original three phrases per style so its existing first-order comparison remains reproducible.
+The default model learns a single causal attention head from prefix/target examples using cross-entropy. A one-hot query for the latest note scores learned keys for up to four previous notes, including the latest. Learned relative-position biases encode recency. The weighted sum of learned value vectors produces eight pitch logits. Softmax gives the next-note distribution. Training uses 35 seeded SGD passes per style. Attention weights describe the mixing operation; chord weighting and random sampling also influence the output.
+
+The selectable count baseline fits nine eight-note phrases per style without crossing phrase boundaries. At each new onset it tries the last two pitches, then the last pitch, then the style-wide counts. On integer beats it doubles the count of candidates in the bar's chord and normalizes before sampling. The seed controls rhythm template selection and pitch sampling. Each bar consumes eight ticks. The mixer places each voice on the same sample clock. No external inference or database is required. The blind lab uses only the original three phrases per style so its existing first-order comparison remains reproducible.
 
 ## 6. Failure modes and guardrails
 
-An unseen motif triggers shorter context; even four identical notes remain valid. The small corpus can replay fragments and yields overconfident choices. The inspector exposes when only one successor was observed. Chord weighting nudges pitches but cannot ensure smooth endings. Fixed length, bounded tempo and motif validation bound render work. Score and saved examples support a projector or server failure. Page-source inspection can spoil blinding. Local voting is suitable for a class activity, not a controlled research trial.
+In the count baseline, an unseen motif triggers shorter context; even four identical notes remain valid. The small corpus can replay fragments and yields overconfident choices. The inspector exposes when only one successor was observed. Chord weighting nudges pitches but cannot ensure smooth endings. Fixed length, bounded tempo and motif validation bound render work. Score and saved examples support a projector or server failure. Page-source inspection can spoil blinding. Local voting is suitable for a class activity, not a controlled research trial.
 
 ## 7. Evaluation
 
 | Stage | Procedure and observed result |
 |---|---|
-| Pitch prediction | Leave one complete phrase out, train on eight, repeat nine folds per style. Score seven next-note targets per held-out phrase (63/style). Add one count to each of eight possible pitches for scoring. Lower mean bits/note is better. Bright: unigram **2.700**, context **2.501**. Wistful: **2.758**, **2.429**. This measures the pitch model before harmonic weighting. |
+| Pitch prediction | Leave one complete phrase out, train on eight, repeat nine folds per style. Score seven next-note targets per held-out phrase (63/style). Use add-one smoothing for the count models and raw softmax probabilities for attention. Lower mean bits/note is better. Bright: unigram **2.700**, context **2.501**, attention **2.190**. Wistful: **2.758**, **2.429**, **2.076**, respectively. This measures the pitch model before harmonic weighting. |
 | Arrangement | Both styles × 3 motifs × 3 tempos × 10 seeds = **180 cases**. Check prefix, supported pitches, total duration, reproducibility, candidate sums and variation. |
 | Render | Verify exact WAV frame counts at 64, 108 and 160 BPM. Observed generation plus rendering at 108 BPM was about 0.25 s on the demo machine. |
 | Listening lab | 80 cases. Familiar adjacent pairs: learned **600/600**, baseline **272/600**. This measures adherence to the tiny training set. |

@@ -66,12 +66,15 @@ class Studio(BaseHTTPRequestHandler):
                 style = q.get("style", ["bright"])[0]
                 seed = int(q.get("seed", ["7"])[0])
                 tempo = int(q.get("tempo", ["108"])[0])
+                model = q.get("model", ["attention"])[0]
+                if model not in {"attention", "counts"}:
+                    raise ValueError
                 motif = [PITCH[n.upper()] for n in q.get("motif", ["C4 E4 G4"])[0].split()]
                 if style not in PHRASES or not 0 <= seed <= 99999 or not 64 <= tempo <= 160 or not 1 <= len(motif) <= 4:
                     raise ValueError
             except (ValueError, KeyError):
                 return self.send_error(400,"Use 1-4 natural notes C4 to C5, a listed style, seed 0-99999 and tempo 64-160")
-            song = arrange(style, seed, motif, tempo, PHRASES)
+            song = arrange(style, seed, motif, tempo, PHRASES, model)
             song["wav"] = base64.b64encode(mix(song)).decode()
             data = json.dumps(song).encode()
             self.send_response(200)

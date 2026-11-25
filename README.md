@@ -1,6 +1,10 @@
 # Phrase Studio
 
-**A motif-to-music instrument for the classroom.** Give it up to four notes. A small statistical generative model keeps that opening and samples a continuation. A synthesizer performs it over four bars of chords and bass. Click a generated note to see which pitches competed for that position, or download the arrangement as a WAV.
+**A motif-to-music instrument for the classroom.** Give it up to four notes. A trained causal self-attention head keeps that opening and samples a continuation. A synthesizer performs it over four bars of chords and bass. Click a generated note to see which pitches competed for that position, or download the arrangement as a WAV.
+
+## Course fit — ABAI3009L
+
+The [official syllabus](https://github.com/Utkrisht-sum/generative_ai_shared/blob/6a92220/syllabus/Generative%20AI.docx) names self-attention under **Transformers & LLMs**. This project applies that mechanism to pitch tokens, a new sequence dataset. CO1 is demonstrated by tracing attention on a generated note, CO2 by holding out whole phrases and comparing three predictors, and CO3 by building an interactive tool for beginning composers. The training unit covers dataset preparation, interpretability and human evaluation; the listening lab illustrates the last of these using simpler sketch generators. Module 4 covers target users and interactive application design. This is a single-head teaching model trained from scratch; music is the chosen application. The syllabus does not specify a compulsory project domain or enumerate the five application-design criteria from the assignment.
 
 ## Run the demo
 
@@ -8,7 +12,7 @@
 2. On the same computer, open `http://127.0.0.1:8000` in Chrome, Edge, or Firefox. Press play after the score appears. Stop the server with Ctrl+C.
 3. Choose **Presentation** for the overview. Page Down advances through the deck. An offline copy lives in [slides.html](slides.html) with its WAVs in the examples folder. Follow the [timed script, rehearsal plan and Q&A](PRESENT.md).
 
-**Stack:** Python 3.9+ standard library for local HTTP, count-based training and PCM synthesis. HTML, CSS and vanilla JavaScript for controls, playback and the interactive score. No database, agent framework, cloud model, API key or package installation.
+**Stack:** Python 3.9+ standard library for local HTTP, self-attention training, count baselines and PCM synthesis. HTML, CSS and vanilla JavaScript for controls, playback and the interactive score. No database, agent framework, cloud model, API key or package installation.
 
 | Example | Controls | What to show |
 |---|---|---|

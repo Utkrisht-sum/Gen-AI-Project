@@ -22,6 +22,7 @@ small,#summary{color:#c1d4cd}.bars{display:grid;grid-template-columns:repeat(4,1
 <div class="layout"><form id="controls"><h2>Composition controls</h2>
 <label for="motif">Opening notes</label><input id="motif" name="motif" value="C4 E4 G4" required maxlength="24" aria-describedby="hint"><small id="hint">1–4 notes from C4 D4 E4 F4 G4 A4 B4 C5</small>
 <label for="style">Style</label><select name="style" id="style"><option value="bright">Bright</option><option value="wistful">Wistful</option></select>
+<label for="model">Pitch model</label><select name="model" id="model"><option value="attention">Causal self-attention</option><option value="counts">Context-count baseline</option></select>
 <label for="tempo">Tempo (BPM)</label><input id="tempo" name="tempo" type="number" min="64" max="160" value="108" required>
 <label for="seed">Variation seed</label><input id="seed" name="seed" type="number" min="0" max="99999" value="7" required>
 <button class="primary">Generate arrangement</button></form>
@@ -46,7 +47,7 @@ function display(song){
       const prefix='Note '+(i+1)+' · '+event.name+'. ';
       if(!event.options){el('info').textContent=prefix+'Copied from your opening motif.';return}
       const order=Number(event.source.slice(-1));
-      const context=order?song.events.slice(i-order,i).map(e=>e.name).join(' → '):'overall pitch frequencies';
+      const context=event.attention ? event.attention.map((a,k)=>song.events[i-event.attention.length+k].name+' ('+Math.round(100*a)+'% attention)').join(' → ') : order?song.events.slice(i-order,i).map(e=>e.name).join(' → '):'overall pitch frequencies';
       const odds=Object.entries(event.options).map(([n,p])=>n+' '+Math.round(100*p)+'%').join(', ');
       el('info').textContent=prefix+'Context: '+context+'. Sampling probabilities after chord weighting: '+odds+'.';
     };

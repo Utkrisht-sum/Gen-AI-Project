@@ -7,6 +7,7 @@ import math
 import random
 import sys
 import wave
+from attention import train
 
 PITCH = dict(zip("C4 D4 E4 F4 G4 A4 B4 C5".split(), (60,62,64,65,67,69,71,72)))
 NAME = {v:k for k,v in PITCH.items()}
@@ -45,8 +46,10 @@ def candidates(table, history):
             return size, table[key]
 
 
-def arrange(style, seed, motif, tempo, phrases):
-    table = fit(corpus(style, phrases))
+def arrange(style, seed, motif, tempo, phrases, model="attention"):
+    data = corpus(style, phrases)
+    table = fit(data)
+    head = train(tuple(map(tuple,data)),tuple(NAME)) if model == "attention" else None
     rng = random.Random(seed)
     notes, events, chords = [], [], []
     tick = 0
@@ -59,11 +62,17 @@ def arrange(style, seed, motif, tempo, phrases):
                 pitch = motif[len(notes)]
                 row.update(source="motif")
             else:
-                order, counts = candidates(table, notes)
+                if head:
+                    _, attention, probs = head.forward(notes)
+                    counts = dict(zip(head.vocab, probs))
+                    row.update(source="attention", attention=attention)
+                else:
+                    order, counts = candidates(table, notes)
+                    row.update(source=f"order {order}")
                 pitches = sorted(counts)
                 weights = [counts[p] * (2 if tick%2==0 and p%12 in {n%12 for n in chord} else 1) for p in pitches]
                 pitch = rng.choices(pitches, weights)[0]
-                row.update(source=f"order {order}", options={NAME[p]:round(w/sum(weights),3) for p,w in zip(pitches,weights)})
+                row.update(options={NAME[p]:round(w/sum(weights),3) for p,w in zip(pitches,weights)})
             notes.append(pitch)
             events.append(dict(row,pitch=pitch,name=NAME[pitch]))
             tick += duration
