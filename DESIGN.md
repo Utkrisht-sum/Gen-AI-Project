@@ -1,30 +1,72 @@
-# Design review
+# Phrase Studio · application design
 
-1. **Problem and users.** Beginning composers need a short, repeatable idea to audition during a lesson. Success means hearing a playable phrase and comparing it with a control. Playback must always require a listener action.
-2. **Why generation.** Our five decision criteria are output diversity, suitability of examples, controllability, cost of mistakes, and measurable improvement over a baseline. Multiple melodies are valid, examples encode adjacent pitches, and a style and seed control sampling. A poor phrase costs seconds to discard. Compare a first-order Markov model against independent draws from the same style’s pitch frequencies. Neither prompting, retrieval nor fine-tuning is needed.
-3. **Scope.** Two authored styles, one instrument, fixed rhythm and 16 notes. Unsupported style, mode or out-of-range seed returns HTTP 400. Lyrics, uploads and full arrangements are outside scope.
-4. **Requirements.** Both modes produce four seconds of mono PCM. Equal inputs reproduce pitches. Target local generation under one second per request. Embedded phrases update on code release. Local execution has zero API cost and sends no inputs to a provider. The server logs request paths locally. Use only project-authored phrases and synthesized tones.
-5. **Architecture.**
+## 1. Problem and users
 
-   ```mermaid
-   flowchart LR
-     UI[Browser controls] --> V[Validate style, mode and seed]
-     P[Authored phrases] --> M[Count pitch transitions]
-     P --> B[Pool individual notes]
-     V --> S[Seeded sampler]
-     M --> S
-     B --> S
-     S --> W[PCM synthesizer]
-     W --> A[Browser audio player]
-     S --> E[Count adjacent pairs seen in the style corpus]
-     A --> VOTE[Blind A/B preference or tie]
-     E --> R[Reveal models and pitch contours]
-     VOTE --> R
-   ```
+A beginner has three notes and wants to hear how they could become a piece. A teacher wants to show exactly where the student's input ends and generation begins. Success means the opening survives, the result plays, and a student can explain one sampled choice. Unexpected playback, silent replacement of the motif, and claims that a listener voted a particular way are unacceptable.
 
-   Validation bounds inputs. The two statistical paths support a controlled comparison. The seeded sampler supports replay and the synthesizer makes results audible offline.
+## 2. Why generative AI and which kind
 
-   The challenge route renders both modes with the same style, seed and synthesizer, then independently shuffles presentation order. The browser enables voting after both clips end. The reveal explains the count of familiar adjacent pairs for each clip. Preferences last for the current page only. This provides classroom blinding; anyone inspecting the page source can see model labels.
-6. **Failures.** A tiny corpus can repeat phrases. First-order context can produce aimless endings. Fixed duration bounds output but cannot guarantee quality. A pitch with no observed successor falls back to the style pool. Visible pitches also support discussion on a muted machine.
-7. **Evaluation.** Cross both styles and modes with 20 seeds. Check lengths, determinism, WAV duration and observed-transition fractions. Gate the demo on passing assertions and a higher pooled transition fraction for learned generation. Target subsecond synthesis. Before presenting, ask three listeners to compare five randomized pairs each with mode hidden. Target at least 10 of 15 preferences for learned output. Record ties separately. Listening results are pending.
-8. **Open questions.** Do listeners identify the intended mood? Ask them to label clips blind. Does the model replay long training fragments? Compare longest shared subsequences before enlarging the corpus. The instructor’s exact five lecture criteria were unavailable, so confirm the criteria in section 2 against class notes.
+| Decision criterion | Consequence |
+|---|---|
+| Multiple valid answers | Sample continuations so students can explore variations. |
+| Available examples | Short authored monophonic phrases support estimating local pitch patterns. |
+| Control | Preserve the motif, expose tempo and use a seed for replay. |
+| Cost of a mistake | Auditioning a weak melody costs seconds. Playback is opt-in. |
+| Measurable benefit | Compare next-note prediction to independent pitch frequencies and collect blind preferences. |
+
+Use a conditional statistical generator trained from scratch. Text prompting and retrieval do not supply a pitch distribution, and this corpus is too small to justify neural fine-tuning. A deterministic backing gives both replayability and a clear distinction between learned pitches and arranged harmony. These five project criteria should be mapped to the instructor’s exact terminology when available.
+
+## 3. Scope
+
+Two styles, one to four natural-note motif pitches from C4 to C5, four bars in 4/4, and WAV export. The browser can also run an unaccompanied listening experiment. Arbitrary lyrics, recorded audio and artist imitation fall outside scope. Invalid controls return HTTP 400 and an actionable message. No accounts or persistent voting.
+
+## 4. Requirements
+
+| Requirement | Acceptance target |
+|---|---|
+| Creative control | Preserve every input pitch in order. Replaying identical controls produces identical notes. Each tested slice yields at least two variants over ten seeds. |
+| Rendering and export | Score covers 32 eighth-note ticks. Mono 16 kHz PCM contains the expected number of frames for 16 beats at the selected tempo. |
+| Explanation | Every sampled note exposes its context order and normalized post-weighting candidates. Motif notes are identified separately. |
+| Audience comparison | Hide generator labels until both clips end and a listener votes. Include a tie option. |
+| Latency and cost | Target under 1 second to generate and render a typical local arrangement. Zero per-request provider fees. |
+| Privacy, freshness, rights | Bind to loopback. Data stays on the machine; HTTP logs contain request parameters. Corpus is versioned with the code and updated at release time. Use project-authored exercises and synthesized audio. |
+
+## 5. Architecture
+
+```mermaid
+flowchart LR
+  UI[Browser motif and controls] --> V[Local Python HTTP validation]
+  V --> G[Seeded continuation sampler]
+  P[Authored style phrases] --> T[Count zero-, one- and two-note contexts]
+  T --> G
+  H[Chord and rhythm templates] --> G
+  G --> E[Timed events and probability trace]
+  E --> S[Score and note inspector]
+  E --> W[Lead, bass and pad PCM mixer]
+  H --> W
+  W --> A[Audio player and WAV export]
+  P --> L[Separate first-order blind lab]
+  L --> B[Two shuffled audio clips and vote reveal]
+```
+
+The model fits nine eight-note phrases per style without crossing phrase boundaries. At each new onset it tries the last two pitches, then the last pitch, then the style-wide counts. On integer beats it doubles the count of candidates in the bar's chord and normalizes before sampling. The seed controls rhythm template selection and pitch sampling. Each bar consumes eight ticks. The mixer places each voice on the same sample clock. No external inference or database is required. The blind lab uses only the original three phrases per style so its existing first-order comparison remains reproducible.
+
+## 6. Failure modes and guardrails
+
+An unseen motif triggers shorter context; even four identical notes remain valid. The small corpus can replay fragments and yields overconfident choices. The inspector exposes when only one successor was observed. Chord weighting nudges pitches but cannot ensure smooth endings. Fixed length, bounded tempo and motif validation bound render work. Score and saved examples support a projector or server failure. Page-source inspection can spoil blinding. Local voting is suitable for a class activity, not a controlled research trial.
+
+## 7. Evaluation
+
+| Stage | Procedure and observed result |
+|---|---|
+| Pitch prediction | Leave one complete phrase out, train on eight, repeat nine folds per style. Score seven next-note targets per held-out phrase (63/style). Add one count to each of eight possible pitches for scoring. Lower mean bits/note is better. Bright: unigram **2.700**, context **2.501**. Wistful: **2.758**, **2.429**. This measures the pitch model before harmonic weighting. |
+| Arrangement | Both styles × 3 motifs × 3 tempos × 10 seeds = **180 cases**. Check prefix, supported pitches, total duration, reproducibility, candidate sums and variation. |
+| Render | Verify exact WAV frame counts at 64, 108 and 160 BPM. Observed generation plus rendering at 108 BPM was about 0.25 s on the demo machine. |
+| Listening lab | 80 cases. Familiar adjacent pairs: learned **600/600**, baseline **272/600**. This measures adherence to the tiny training set. |
+| Human review | Ask three listeners for five shuffled A/B judgments each. Tally learned, baseline and ties on paper. Target 10/15 learned preferences as an exploratory goal. Results are pending. |
+
+Launch targets: all functional assertions pass, valid WAV export and browser playback work, and held-out context loss beats the unigram baseline in both slices. Musical preference is a separate outcome. Do not treat a small in-class vote as evidence of general superiority.
+
+## 8. Open questions and risks
+
+Do longer contexts improve phrasing or mainly increase copying? Compare contiguous overlap as the corpus grows. Does musical training affect preferences? Record it voluntarily in a future listening study. Does the class identify the intended style blind? Ask separately from preference. A corpus of 18 short phrases supports a classroom demonstration, not claims about music broadly.

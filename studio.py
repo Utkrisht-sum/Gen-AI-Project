@@ -10,6 +10,7 @@ from collections import defaultdict
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
+from arranger import PITCH, arrange, mix
 
 # Original teaching phrases, encoded as MIDI pitches.
 PHRASES = {
@@ -47,7 +48,39 @@ def render(notes):
 class Studio(BaseHTTPRequestHandler):
     def do_GET(self):
         path = urlsplit(self.path)
-        if path.path not in {"/", "/challenge"}:
+        if path.path == "/slides.html":
+            return self.send_page(Path(__file__).with_name("slides.html").read_text())
+        if path.path in {"/examples/bright.wav", "/examples/wistful.wav"}:
+            data = (Path(__file__).parent / path.path[1:]).read_bytes()
+            self.send_response(200)
+            self.send_header("Content-Type", "audio/wav")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+            return
+        if path.path == "/" and not path.query:
+            return self.send_page(Path(__file__).with_name("workbench.html").read_text())
+        if path.path == "/api/arrange":
+            q = parse_qs(path.query, keep_blank_values=True)
+            try:
+                style = q.get("style", ["bright"])[0]
+                seed = int(q.get("seed", ["7"])[0])
+                tempo = int(q.get("tempo", ["108"])[0])
+                motif = [PITCH[n.upper()] for n in q.get("motif", ["C4 E4 G4"])[0].split()]
+                if style not in PHRASES or not 0 <= seed <= 99999 or not 64 <= tempo <= 160 or not 1 <= len(motif) <= 4:
+                    raise ValueError
+            except (ValueError, KeyError):
+                return self.send_error(400,"Use 1-4 natural notes C4 to C5, a listed style, seed 0-99999 and tempo 64-160")
+            song = arrange(style, seed, motif, tempo, PHRASES)
+            song["wav"] = base64.b64encode(mix(song)).decode()
+            data = json.dumps(song).encode()
+            self.send_response(200)
+            self.send_header("Content-Type","application/json")
+            self.send_header("Content-Length",str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+            return
+        if path.path not in {"/", "/sketch", "/challenge"}:
             return self.send_error(404)
         q = parse_qs(path.query)
         style = q.get("style", ["bright"])[0]
@@ -80,6 +113,7 @@ class Studio(BaseHTTPRequestHandler):
         h1{{font:3rem Georgia}} form{{display:flex;flex-wrap:wrap;gap:1rem}}button,select,input{{font:inherit}}audio{{width:100%}}</style>
         <h1>Phrase Studio</h1><p>Compose a four-second melody from patterns learned in short musical phrases.</p>
         <p><a href="/challenge?style={style}&amp;seed={seed}">Open the blind listening challenge →</a></p>
+        <a href="/">Arrangement workbench</a>
         <form>{select('style',PHRASES,style)}{select('mode',['learned','baseline'],mode)}
         <label>Seed <input name=seed type=number min=0 max=99999 value={seed}></label><button>Compose</button></form>
         <h2>Your melody</h2><audio controls src="data:audio/wav;base64,{clip}"></audio>

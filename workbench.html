@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Phrase Studio · Arrangement workbench</title>
+<style>
+:root{color-scheme:dark;--bg:#101718;--panel:#1b2627;--line:#39504f;--mint:#a6ecd0;--pink:#ffc39b}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:#f3f4e9;font:1rem Inter,system-ui,sans-serif}
+main,nav{max-width:1160px;margin:auto;padding:1rem clamp(1rem,4vw,3rem)}nav{display:flex;gap:1.4rem;align-items:center;border-bottom:1px solid var(--line);flex-wrap:wrap}nav strong{margin-right:auto}a{color:var(--mint)}
+h1{font:clamp(2.4rem,6vw,4.8rem) Georgia,serif;letter-spacing:-.05em;margin:.4em 0 .1em}
+h2{font-size:1.2rem}p{line-height:1.5}.layout{display:grid;grid-template-columns:minmax(220px,1fr) 2.6fr;gap:1rem;margin-top:2rem}
+form,section{background:var(--panel);padding:1.3rem;border:1px solid var(--line);border-radius:12px;min-width:0}
+label{display:block;margin:1rem 0 .35rem}input,select,button{font:inherit}
+input,select{width:100%;padding:.6rem;background:#121b1d;border:1px solid #60706b;color:inherit;border-radius:5px}
+button{cursor:pointer}.primary{background:var(--mint);color:#09251f;border:0;border-radius:5px;font-weight:700;padding:.8rem;width:100%;margin-top:1rem}
+small,#summary{color:#c1d4cd}.bars{display:grid;grid-template-columns:repeat(4,1fr);border-bottom:1px solid var(--line);margin-top:1rem}.bars span{padding:.4rem;border-left:1px solid var(--line)}
+#roll{height:170px;position:relative;background-color:#111a1b;background-image:linear-gradient(90deg,#42605c 1px,transparent 1px),linear-gradient(#263536 1px,transparent 1px);background-size:25% 100%,100% 14.285%}
+.note{position:absolute;height:11px;border-radius:3px;border:0;background:var(--mint)}.note.motif{background:var(--pink)}.note:focus,.note.selected{outline:2px solid white;outline-offset:2px}
+.legend{font-size:.85rem;color:#cfdfd8}.legend b{color:var(--pink)}audio{width:100%;margin:.5rem 0}#info{min-height:4.2em;background:#142021;border-left:3px solid var(--mint);padding:.7rem}#status{min-height:1.5em}button:disabled{opacity:.65}
+@media(max-width:720px){.layout{grid-template-columns:1fr}nav{gap:.7rem}.bars span{font-size:.8rem}}
+</style>
+<nav><strong>♪ Phrase Studio</strong><a href="/slides.html">Presentation</a><a href="/sketch">Melody sketch</a><a id="challenge" href="/challenge">Blind listening lab</a></nav>
+<main><h1>Arrangement workbench</h1><p>Give the model an opening motif. Hear it continue your idea across four bars of melody, bass and chords.</p>
+<div class="layout"><form id="controls"><h2>Composition controls</h2>
+<label for="motif">Opening notes</label><input id="motif" name="motif" value="C4 E4 G4" required maxlength="24" aria-describedby="hint"><small id="hint">1–4 notes from C4 D4 E4 F4 G4 A4 B4 C5</small>
+<label for="style">Style</label><select name="style" id="style"><option value="bright">Bright</option><option value="wistful">Wistful</option></select>
+<label for="tempo">Tempo (BPM)</label><input id="tempo" name="tempo" type="number" min="64" max="160" value="108" required>
+<label for="seed">Variation seed</label><input id="seed" name="seed" type="number" min="0" max="99999" value="7" required>
+<button class="primary">Generate arrangement</button></form>
+<section aria-labelledby="heading"><h2 id="heading">Arrangement score</h2><p id="status" role="status"></p>
+<div id="output" hidden><p id="summary"></p><div class="bars" id="bars"></div><div id="roll" aria-label="Pitch score; select a note to inspect it"></div>
+<p class="legend"><b>Peach · your motif</b> &nbsp; Mint · generated notes</p>
+<audio id="player" controls aria-label="Play arrangement"></audio><a id="download">Download WAV</a>
+<h2>Note inspector</h2><p>Select a note in the score to inspect its source and the model’s alternatives.</p><p id="info" aria-live="polite"></p></div></section></div></main>
+<script>
+const el=id=>document.getElementById(id);
+function display(song){
+  el('bars').replaceChildren(); el('roll').replaceChildren();
+  song.chords.forEach((chord,i)=>{const bar=document.createElement('span');bar.textContent=(i+1)+' · '+chord;el('bars').append(bar)});
+  song.events.forEach((event,i)=>{
+    const note=document.createElement('button');
+    note.type='button'; note.className='note '+(event.source==='motif'?'motif':'');
+    note.style.left=(event.tick/32*100)+'%'; note.style.width=(event.length/32*100-.6)+'%';
+    note.style.bottom=(5+(event.pitch-60)*7)+'%';
+    note.setAttribute('aria-label','Note '+(i+1)+', '+event.name+', '+event.source);
+    note.onclick=()=>{
+      el('roll').querySelector('.selected')?.classList.remove('selected');note.classList.add('selected');
+      const prefix='Note '+(i+1)+' · '+event.name+'. ';
+      if(!event.options){el('info').textContent=prefix+'Copied from your opening motif.';return}
+      const order=Number(event.source.slice(-1));
+      const context=order?song.events.slice(i-order,i).map(e=>e.name).join(' → '):'overall pitch frequencies';
+      const odds=Object.entries(event.options).map(([n,p])=>n+' '+Math.round(100*p)+'%').join(', ');
+      el('info').textContent=prefix+'Context: '+context+'. Sampling probabilities after chord weighting: '+odds+'.';
+    };
+    el('roll').append(note);
+  });
+  el('output').hidden=false;
+  el('roll').children[song.events.findIndex(e=>e.options)].click();
+  el('summary').textContent=song.style+' · '+song.tempo+' BPM · seed '+song.seed+' · '+song.events.length+' melody notes';
+  el('player').src='data:audio/wav;base64,'+song.wav;
+  el('download').href=el('player').src;el('download').download='phrase-'+song.style+'-'+song.seed+'.wav';
+  el('challenge').href='/challenge?style='+song.style+'&seed='+song.seed;
+}
+async function generate(){
+  const form=el('controls'),button=form.querySelector('button');
+  button.disabled=true;el('status').textContent='Composing…';
+  try{
+    const res=await fetch('/api/arrange?'+new URLSearchParams(new FormData(form)));
+    if(!res.ok)throw Error(res.status===400?'Check the opening notes, seed and tempo.':'Generation failed. Try again.');
+    display(await res.json());el('status').textContent='Ready to play.';
+  }catch(err){el('status').textContent=err.message}
+  finally{button.disabled=false}
+}
+el('controls').onsubmit=e=>{e.preventDefault();generate()};generate();
+</script></html>
